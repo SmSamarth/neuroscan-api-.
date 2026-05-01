@@ -5,7 +5,6 @@ import numpy as np
 
 # ==========================================
 # 1. THE CLASSIFIER CLASS
-# (Moved here so you don't need a separate file)
 # ==========================================
 class MRIClassifier:
     def __init__(self, model_path, labels):
@@ -37,10 +36,11 @@ app = FastAPI(title="NeuroScan ML Service")
 processor = MRIProcessor()
 
 # ==========================================
-# 3. ALZHEIMER's ENDPOINT
+# 3. ALZHEIMER'S ENDPOINT
 # ==========================================
 ALZ_LABELS = ["MildDemented", "ModerateDemented", "NonDemented", "VeryMildDemented"]
-ALZ_MODEL_PATH = r"C:\Users\samar\OneDrive\Desktop\NeuroScan\neuroscan\ml-service\models\trained_alzheimers_model.keras"
+# FIXED: Changed to relative path for Linux compatibility
+ALZ_MODEL_PATH = "models/trained_alzheimers_model.keras"
 
 alzheimer_classifier = MRIClassifier(ALZ_MODEL_PATH, ALZ_LABELS)
 
@@ -63,14 +63,29 @@ async def predict_alzheimer(file: UploadFile = File(...)):
 # 4. BRAIN TUMOR ENDPOINT
 # ==========================================
 TUMOR_LABELS = ["no", "yes"]
-TUMOR_MODEL_PATH = r"C:\Users\samar\OneDrive\Desktop\NeuroScan\neuroscan\ml-service\models\trained_tumor_model.keras"
+# FIXED: Changed to relative path for Linux compatibility
+TUMOR_MODEL_PATH = "models/trained_tumor_model.keras"
 
 tumor_classifier = MRIClassifier(TUMOR_MODEL_PATH, TUMOR_LABELS)
 
 @app.post("/predict/tumor")
 async def predict_tumor(file: UploadFile = File(...)):
     image_bytes = await file.read()
+    try:
+        processed_image = processor.preprocess(image_bytes)
+        ai_result = tumor_classifier.predict(processed_image)
+        
+        return {
+            "status": "success",
+            "diagnosis": ai_result["label"], 
+            "confidence": round(ai_result["confidence_score"] * 100, 2)
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
+# ==========================================
+# 5. COMPREHENSIVE SCAN ENDPOINT
+# ==========================================
 @app.post("/predict/comprehensive")
 async def predict_comprehensive(file: UploadFile = File(...)):
     image_bytes = await file.read()
@@ -95,17 +110,6 @@ async def predict_comprehensive(file: UploadFile = File(...)):
                     "confidence": f"{round(tumor_result['confidence_score'] * 100, 2)}%"
                 }
             }
-        }
-    except Exception as e:
-        return {"error": str(e)}
-    try:
-        processed_image = processor.preprocess(image_bytes)
-        ai_result = tumor_classifier.predict(processed_image)
-        
-        return {
-            "status": "success",
-            "diagnosis": ai_result["label"], 
-            "confidence": round(ai_result["confidence_score"] * 100, 2)
         }
     except Exception as e:
         return {"error": str(e)}
