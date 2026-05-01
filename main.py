@@ -1,28 +1,50 @@
+import gc
 from fastapi import FastAPI, File, UploadFile
 from preprocessing.opencv_pipeline import MRIProcessor
 import tensorflow as tf
 import numpy as np
 
 # ==========================================
-# 1. THE CLASSIFIER CLASS
+# 1. THE CLASSIFIER CLASS (Memory Optimized)
 # ==========================================
 class MRIClassifier:
     def __init__(self, model_path, labels):
-        self.model = tf.keras.models.load_model(model_path)
+        self.model_path = model_path
         self.labels = labels
+        self.model = None # Start with nothing in memory
+
+    def load_model(self):
+        """Loads the model into RAM only when needed."""
+        if self.model is None:
+            self.model = tf.keras.models.load_model(self.model_path)
+
+    def unload_model(self):
+        """Deletes the model from RAM to prevent crashing the free server."""
+        if self.model is not None:
+            del self.model
+            self.model = None
+            tf.keras.backend.clear_session() # Tell TensorFlow to let go of memory
+            gc.collect() # Force Python to clean up the trash
 
     def predict(self, processed_image):
-        # Ensure dimensions are (1, height, width, channels)
+        # 1. Load into memory
+        self.load_model()
+        
+        # 2. Prepare image
         if processed_image.ndim == 3:
             img_array = np.expand_dims(processed_image, axis=0)
         else:
             img_array = processed_image
             
+        # 3. Predict
         predictions = self.model.predict(img_array)
-        probabilities = predictions[0] # Use raw output assuming Softmax is in the model
+        probabilities = predictions[0] 
         
         class_index = np.argmax(probabilities)
         confidence = float(np.max(probabilities))
+        
+        # 4. Instantly delete from memory!
+        self.unload_model()
         
         return {
             "label": self.labels[class_index],
@@ -39,7 +61,6 @@ processor = MRIProcessor()
 # 3. ALZHEIMER'S ENDPOINT
 # ==========================================
 ALZ_LABELS = ["MildDemented", "ModerateDemented", "NonDemented", "VeryMildDemented"]
-# FIXED: Changed to relative path for Linux compatibility
 ALZ_MODEL_PATH = "models/trained_alzheimers_model.keras"
 
 alzheimer_classifier = MRIClassifier(ALZ_MODEL_PATH, ALZ_LABELS)
@@ -63,7 +84,6 @@ async def predict_alzheimer(file: UploadFile = File(...)):
 # 4. BRAIN TUMOR ENDPOINT
 # ==========================================
 TUMOR_LABELS = ["no", "yes"]
-# FIXED: Changed to relative path for Linux compatibility
 TUMOR_MODEL_PATH = "models/trained_tumor_model.keras"
 
 tumor_classifier = MRIClassifier(TUMOR_MODEL_PATH, TUMOR_LABELS)
@@ -90,14 +110,14 @@ async def predict_tumor(file: UploadFile = File(...)):
 async def predict_comprehensive(file: UploadFile = File(...)):
     image_bytes = await file.read()
     try:
-        # Preprocess the image once
         processed_image = processor.preprocess(image_bytes)
         
-        # Run the image through BOTH AI models
+        # Because of our new class, it will load Model 1 -> Predict -> Unload Model 1
         alz_result = alzheimer_classifier.predict(processed_image)
+        
+        # Then it will load Model 2 -> Predict -> Unload Model 2
         tumor_result = tumor_classifier.predict(processed_image)
         
-        # Combine the results into a single patient report
         return {
             "status": "success",
             "comprehensive_report": {
