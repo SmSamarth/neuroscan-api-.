@@ -4,6 +4,16 @@ from preprocessing.opencv_pipeline import MRIProcessor
 import tensorflow as tf
 import numpy as np
 
+# --- ADD THESE TWO LINES RIGHT HERE ---
+# This forces TensorFlow to use only 1 CPU thread, saving massive amounts of RAM
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+# --------------------------------------
+
+# ==========================================
+# 1. THE CLASSIFIER CLASS (Memory Optimized)
+# ==========================================
+# ... (Keep the rest of your code exactly the same)
 # ==========================================
 # 1. THE CLASSIFIER CLASS (Memory Optimized)
 # ==========================================
