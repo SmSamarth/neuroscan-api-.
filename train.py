@@ -1,7 +1,7 @@
+import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras import layers, models
 import os
-
 # 1. Define where your data is
 # IMPORTANT: If your 'yes' and 'no' folders are inside another folder 
 # (like 'data/brain_tumor_dataset'), update this path to match!
@@ -39,8 +39,15 @@ val_dataset = val_dataset.map(lambda x, y: (normalization_layer(x), y))
 print("Building the neural network architecture...")
 
 # 4. Build the Convolutional Neural Network (CNN)
+# 4. Build the Convolutional Neural Network (CNN)
 model = models.Sequential([
     layers.InputLayer(input_shape=(224, 224, 1)),
+    
+    # --- NEW AUGMENTATION LAYERS GO HERE ---
+    layers.RandomFlip("horizontal"),
+    layers.RandomRotation(0.1), 
+    layers.RandomZoom(0.1),     
+    # ---------------------------------------
     
     # Feature extraction layers
     layers.Conv2D(32, (3, 3), activation='relu'),
@@ -74,3 +81,17 @@ os.makedirs("models", exist_ok=True)
 model.save("models/trained_tumor_model.keras")
 
 print("SUCCESS: Model successfully trained and saved to models/trained_tumor_model.keras!")
+
+# --- ADD THIS TO THE BOTTOM OF train.py ---
+print("Drawing accuracy graph...")
+
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+
+plt.title('AI Learning Curve (Accuracy)')
+plt.xlabel('Epoch (Study Session)')
+plt.ylabel('Accuracy Score')
+plt.legend(loc='lower right')
+
+plt.savefig('learning_curve.png')
+print("Graph saved as learning_curve.png! Open it to see how your AI learned.")

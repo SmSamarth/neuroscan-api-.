@@ -40,11 +40,29 @@ class MRIClassifier:
         predictions = self.model.predict(img_array)
         probabilities = predictions[0] 
         
-        class_index = np.argmax(probabilities)
-        confidence = float(np.max(probabilities))
+        # 4. THE TRANSLATOR FIX
+        # If the AI outputs 1 number (Tumor Model - Sigmoid)
+        if len(probabilities) == 1:
+            ai_score = float(probabilities[0])
+            if ai_score > 0.5:
+                class_index = 1 # "yes"
+                confidence = ai_score
+            else:
+                class_index = 0 # "no"
+                confidence = 1.0 - ai_score # Flips a 0.1 score to 90% confident it's a "no"
+                
+        # If the AI outputs multiple numbers (Alzheimer's Model - Softmax)
+        else:
+            class_index = int(np.argmax(probabilities))
+            confidence = float(np.max(probabilities))
         
-        # 4. Instantly delete from memory!
+        # 5. Instantly delete from memory!
         self.unload_model()
+        
+        return {
+            "label": self.labels[class_index],
+            "confidence_score": confidence
+        }
         
         return {
             "label": self.labels[class_index],
